@@ -27,6 +27,7 @@ import ipaddress
 import yaml
 import json
 import argparse
+from netaddr import IPRange
 
 DEBUG = False
 API_VERSION = (0, 9)  # Required by KafkaConsumer, refer to SDK docs
@@ -77,12 +78,12 @@ def create_ssl_context(cert_folder):
     return ctx
 
 
-def process_filters(processed_inventory_filters, filters):
+def process_filters(processed_inventory_filters, filters, members_as_cidr):
     for item in filters:
         # processed_inventory_filters[item.id] = {
         #     'id': item.id, 'name': item.name, 'query': item.query, 'addresses': process_addresses(item.inventory_items)}
         processed_inventory_filters[item.id] = {
-            'id': item.id, 'name': item.name, 'addresses': process_addresses(item.inventory_items)}
+            'id': item.id, 'name': item.name, 'addresses': process_addresses(item.inventory_items, members_as_cidr)}
 
 
 def process_scopes(processed_scopes, scopes):
@@ -111,7 +112,7 @@ def process_intents(processed_intents, intents, scopes, inventory_filters):
         processed_intents.append(intent)
 
 
-def process_addresses(addresses):
+def process_addresses(addresses, members_as_cidr):
     processed_addresses = {}
     for address in addresses:
         if address.ip_address.ip_addr != b'':
@@ -133,18 +134,25 @@ def process_addresses(addresses):
                     processed_addresses['ips']=[]
                 processed_addresses['ips'].append(str(ipaddress.ip_address(address.start_ip_addr)))
             else:
-                if 'ranges' not in processed_addresses:
-                    processed_addresses['ranges']=[]
-                ip_range={'start':str(ipaddress.ip_address(address.start_ip_addr)),'end':str(ipaddress.ip_address(address.end_ip_addr))}
-                processed_addresses['ranges'].append(ip_range)
+                if members_as_cidr:
+                    if 'subnets' not in processed_addresses:
+                        processed_addresses['subnets']=[]
+                        processed_addresses['subnets'] = processed_addresses['subnets'] + range_to_subnets(start_addr=str(ipaddress.ip_address(address.start_ip_addr)),end_addr=str(ipaddress.ip_address(address.end_ip_addr)))
+                else:
+                    if 'ranges' not in processed_addresses:
+                        processed_addresses['ranges']=[]
+                    ip_range={'start':str(ipaddress.ip_address(address.start_ip_addr)),'end':str(ipaddress.ip_address(address.end_ip_addr))}
+                    processed_addresses['ranges'].append(ip_range)
         elif address.lb_service != b'':
             print('Im a load-balancer')
         else:
             print('Failed to process address.')
     return processed_addresses
 
+def range_to_subnets(start_addr, end_addr):
+    return [str(x) for x in IPRange(start_addr,end_addr).cidrs()]
 
-def update_policy_target(policy, output_objects, json_out, yaml_out,save_to_file):
+def update_policy_target(policy, output_objects, json_out, yaml_out, save_to_file):
     output = {'version':policy.version,'create_timestamp':policy.create_timestamp}
     if 'SCOPES' in output_objects:
         output['scopes'] = policy.scopes
@@ -331,6 +339,8 @@ def main():
                         help='Include scopes in output.')
     parser.add_argument('--filters', action='store_true', default=False,
                         help='Include filters in output.')
+    parser.add_argument('--members_as_cidr', action='store_true', default=False,
+                        help='Changes the output of filter membership from the default behavior of IP ranges to Subnets.')
     parser.add_argument('--policies', action='store_true', default=False,
                         help='Include policies in output.')
     parser.add_argument('--loop', action='store_true', default=False,
@@ -375,7 +385,7 @@ def main():
                     policy.scopes, policy.buffer.tenant_network_policy.scopes)
             for item in policy.buffer.tenant_network_policy.network_policy:
                 process_filters(policy.inventory_filters,
-                                item.inventory_filters)
+                                item.inventory_filters, args.members_as_cidr)
                 if 'POLICIES' in output_objects:
                     process_intents(policy.intents, item.intents,
                                     policy.scopes, policy.inventory_filters)
