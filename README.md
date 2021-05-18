@@ -1,8 +1,8 @@
 # Secure Workload Policy Client
 Cisco Secure Workload is designed to share it's dynamic policy with 3rd party systems to analyze and enforce Secure Workload policy.
 
-# Usage
-Command Line Arguments
+## Usage
+### Command Line Arguments
 ```
 $ python3 secure_workload_policy_client.py --help
 usage: secure_workload_policy_client.py [-h] --cert_folder CERT_FOLDER
@@ -32,7 +32,7 @@ optional arguments:
                         Filename to save without extension.
 ```
 
-Example Use Case
+### Example Use Case
 ```
 python3 secure_workload_policy_client.py --cert_folder="./Policy-Stream-308/" --yaml --filters --scopes --policies --loop --seek_to_last --save_to_file="policy_export_10-1-2021"
 ```
