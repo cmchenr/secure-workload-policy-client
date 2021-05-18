@@ -1,4 +1,4 @@
-# Annotations Optimizer
+# Secure Workload Policy Client
 Cisco Secure Workload is designed to share it's dynamic policy with 3rd party systems to analyze and enforce Secure Workload policy.
 
 # Usage
